@@ -4,57 +4,53 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import eig
 
-plt.ion()
-
 mu0 = 4E-7*np.pi
 epsilon0 = 8.8541878128E-12
 
 
-def plot_rect_waveguide_mode(m, n, a=2, b=1, k0a_start=1, k0a_end=8, new_fig=False):
-    """Plot the dispersion curve for the TE/TM mn mode (they look the same). a and b are the dimensions of waveguide."""
-    if new_fig:
-        plt.figure()
-    min_k0 = k0a_start / a
-    max_k0 = k0a_end / a
-    num_freqs = 1000
-    k0s = np.linspace(min_k0, max_k0, num_freqs)
-    betas = np.sqrt(k0s**2 - (m*np.pi/a)**2 - (n*np.pi/b)**2)
-    plt.plot(k0s*a, betas/k0s)
+class Waveguide:
 
+    def __init__(self, filename, num_surfaces, permittivities):
+        """
+        Constructor for a waveguide. Can be inhomogeneous and any shape.
+        :param filename: The name of the abaqus file (.inp) to be used for this Waveguide object.
+        :param num_surfaces: The number of surfaces that compose the waveguide.
+        :param permittivities: The corresponding permittivities of each surface as a list.
+        """
+        self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, num_surfaces, permittivities)
+        # Compute the bounds of the waveguide
+        self.x_min = np.amin(self.all_nodes[:, 0])
+        self.y_min = np.amin(self.all_nodes[:, 1])
+        self.x_max = np.amax(self.all_nodes[:, 0])
+        self.y_max = np.amax(self.all_nodes[:, 1])
 
-if __name__ == '__main__':
-    # These need to be the same as the rectangular waveguide .inp file, we just happen to know the size ahead of time.
-    a = 2
-    b = 1
-    # k0 = 1 is ~47.7 MHz
-    num_freqs = 10
-    # k0s = np.linspace(5E3, 5E6, num_freqs) * 2 * np.pi * np.sqrt(mu0*epsilon0)
-    min_k0 = 1 / a
-    max_k0 = 8 / a
-    k0s = np.linspace(min_k0, max_k0, num_freqs)
-    # Load the mesh from the file
-    connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = load_mesh("rect_mesh_two_epsilons_coarse.inp", 2, [1, 1])
-    # connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = load_mesh("rectangular_waveguide.inp", 1, [1])
+    def solve_k0(self, k0, verbose=False):
+        """
+        Solve for the propagation constants and eigenvectors of a waveguide at a particular k0.
+        Can be inhomogeneous and any shape.
+        :param k0: The k0 (essentially a frequency) to solve for.
+        :param verbose: If True, prints out information as the waveguide is solved.
+        :return: Two numpy arrays. The first holds the propagation constants for the k0. The second holds the eigenvectors
+        for the k0. Each array is sorted by propagation constant. Eigenvectors are stored as rows in the returned numpy
+        array, not columns.
+        """
+        # Load the mesh from the file
+        connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
+        # Debug statements
+        print(f"Number of Nodes: {len(all_nodes)}")
+        print(f"Number of Edges: {len(all_edges)}")
+        print(f"Number of Inner Nodes: {len(remap_inner_node_nums)}")
+        print(f"Number of Inner Edges: {len(remap_inner_edge_nums)}")
+        print()
+        # Compute the bounds of the waveguide
+        x_min = np.amin(all_nodes[:, 0])
+        y_min = np.amin(all_nodes[:, 1])
+        x_max = np.amax(all_nodes[:, 0])
+        y_max = np.amax(all_nodes[:, 1])
 
-    # Print out the lengths of some arrays of mesh data
-    print(f"Number of Nodes: {len(all_nodes)}")
-    print(f"Number of Edges: {len(all_edges)}")
-    print(f"Number of Inner Nodes: {len(remap_inner_node_nums)}")
-    print(f"Number of Inner Edges: {len(remap_inner_edge_nums)}")
-    print()
+        a = x_max - x_min
+        b = y_max - y_min
 
-    # Create the figure for plotting
-    plt.figure()
-    plt.xlabel(r"$k_0 * a$")
-    plt.ylabel(r"$\beta / k_0$")
-    # Analytical TE/TM Modes (the dispersion curves will look the same)
-    for i in range(3):
-        for j in range(3):
-            if i == j == 0:
-                continue
-            plot_rect_waveguide_mode(i, j)
-
-    for k0 in k0s:
         print(f"Solving for k0 = {k0}")
         # Create empty matrices
         Att = np.zeros([len(remap_inner_edge_nums), len(remap_inner_edge_nums)])
@@ -216,70 +212,175 @@ if __name__ == '__main__':
         # All the eigenvalues should have no imaginary component. If they do, something is wrong. Still need this.
         eigenvalues = np.real(eigenvalues[p])
         eigenvectors = np.real(eigenvectors[p])
-        first = np.argwhere(eigenvalues >= 0)[0, 0]
-        positive_eigenvalues = eigenvalues[first:]
-        positive_eigenvectors = eigenvectors[first:]
-        print(eigenvalues)
-        betas = np.sqrt(positive_eigenvalues)
-        # Debug statement to observe how many eigenvalues are positive for a particular k0
-        print(f"Number of propagating eigenvalues: {len(positive_eigenvalues)}, Total Eigenvalues: {len(eigenvalues)}")
-        # Plot the beta values against k0
-        plt.scatter(k0 * a * np.ones(len(betas)), betas/k0, color="blue", marker="o", facecolors='none')
+        # Find the first positive propagation constant
+        first_pos = np.argwhere(eigenvalues >= 0)[0, 0]
+        # Return the \beta values and their corresponding eigenvectors
+        return np.sqrt(eigenvalues[first_pos:]), eigenvectors[first_pos:]
 
-    # ----------------------FIELD PLOTTING--------------------------
-    # Find the minimum and maximum x and y values among the nodes:
-    x_min = np.amin(all_nodes[:, 0])
-    y_min = np.amin(all_nodes[:, 1])
-    x_max = np.amax(all_nodes[:, 0])
-    y_max = np.amax(all_nodes[:, 1])
-    # Create a rectangular grid of points that the geometry is inscribed in
-    num_x_points = 100
-    x_points = np.linspace(x_min, x_max, num_x_points)
-    num_y_points = 100
-    y_points = np.linspace(y_min, y_max, num_y_points)
-    Ez = np.zeros([num_x_points, num_y_points])
-    Ex = np.zeros([num_x_points, num_y_points])
-    Ey = np.zeros([num_x_points, num_y_points])
+    def solve(self, start_k0=-1, end_k0=-1, num_k0s=10, verbose=False):
+        """
+        Solve for the propagation constants and eigenvectors of a waveguide.
+        Can be inhomogeneous and any shape, but non-rectangular waveguides should specify the start and end k0 values.
+        :param start_k0: The starting k0 (essentially a frequency) to solve for. Default is 2 / waveguide's x length.
+        :param end_k0: The ending k0 (essentially a frequency) to solve for. Default is 8 / waveguide's x length.
+        :param num_k0s: The number of k0 values to solve for (between start_k0 and end_k0).
+        :param verbose: If True, prints out information as the waveguide is solved.
+        :return: Three numpy arrays. The first holds a numpy array of propagation constants for each k0. The second holds a
+        numpy array of eigenvectors for each k0. Each numpy array that corresponds to a particular k0 is sorted by the
+        propagation constants solved for that k0. Eigenvectors are stored as rows in the returned numpy arrays, not columns.
+        The third numpy array holds the k0s that were solved for.
+        """
+        total_propagation_constants = []
+        total_eigenvectors = []
+        # Assign these variables this way to avoid changing everything to "self.variable_name"
+        connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
 
-    # Just used to skip over the transverse edge coefficients, the Ez coefficients come right after them
-    skip_tran = len(remap_inner_edge_nums)
-    # The mode to show the fields for. This will tend to show the lowest possible mode first, but might not.
-    # It really depends on the order of the beta values at that particular k0*a (frequency)
-    mode = 0
-    # Iterate over the 100x100 grid of points we want to plot
-    for i in range(num_y_points):
-        pt_y = y_points[i]
-        for j in range(num_x_points):
-            pt_x = x_points[j]
-            element_num = -1
-            for k, element in enumerate(connectivity):
-                # Check if the point is inside this element
-                if element.is_inside(pt_x, pt_y):
-                    # The element this point lies in has been found, note it and stop searching
-                    element_num = k
-                    break
-            # If we found an element that the point lies in, calculate the fields. If not found, Ex, Ey, Ez = 0
-            if element_num != -1:
-                # Get the phi values associated with each node
-                phi1 = 0 if not element.nodes[0] in remap_inner_node_nums else eigenvectors[-1-mode, skip_tran + remap_inner_node_nums[element.nodes[0]]]
-                phi2 = 0 if not element.nodes[1] in remap_inner_node_nums else eigenvectors[-1-mode, skip_tran + remap_inner_node_nums[element.nodes[1]]]
-                phi3 = 0 if not element.nodes[2] in remap_inner_node_nums else eigenvectors[-1-mode, skip_tran + remap_inner_node_nums[element.nodes[2]]]
-                # Interpolate to get Ez
-                Ez[i, j] = element.nodal_interpolate(phi1, phi2, phi3, pt_x, pt_y)
+        a = self.x_max - self.x_min
+        b = self.y_max - self.y_min
+        # Set up the k0 values to solve for
+        start_k0 = 2 / a if start_k0 == -1 else start_k0
+        end_k0 = 8 / a if end_k0 == -1 else end_k0
+        k0s = np.linspace(start_k0, end_k0, num_k0s)
 
-                # Get the phi values associated with each edge
-                phi1e = 0 if not element.edges[0] in remap_inner_edge_nums else eigenvectors[-1-mode, remap_inner_edge_nums[element.edges[0]]]
-                phi2e = 0 if not element.edges[1] in remap_inner_edge_nums else eigenvectors[-1-mode, remap_inner_edge_nums[element.edges[1]]]
-                phi3e = 0 if not element.edges[2] in remap_inner_edge_nums else eigenvectors[-1-mode, remap_inner_edge_nums[element.edges[2]]]
-                # Interpolate to get Ex and Ey
-                Ex[i, j], Ey[i, j] = element.edge_interpolate(phi1e, phi2e, phi3e, pt_x, pt_y)
+        # Iterate over each k0 (frequency)
+        for k0 in k0s:
+            eigenvalues, eigenvectors = self.solve_k0(k0, verbose)
+            total_propagation_constants.append(eigenvalues)
+            total_eigenvectors.append(eigenvectors)
 
-    plt.figure()
-    color_image = plt.imshow(Ez, extent=[x_min, x_max, y_min, y_max], cmap="cividis")
-    plt.colorbar(label="Ez")
-    X, Y = np.meshgrid(x_points, y_points)
-    skip = (slice(None, None, 5), slice(None, None, 5))
-    plt.quiver(X[skip], Y[skip], Ex[skip], Ey[skip], color="black")
-    print(f"Plot shown for beta/k0 = {betas[-1-mode]/k0s[-1]}")
+        return np.array(total_propagation_constants), np.array(total_eigenvectors), k0s
+
+    def plot_dispersion(self, k0s, all_propagation_constants, rel_x=True):
+        """
+        Plot the Dispersion curves given the propagation constants. Creates a new figure in the process.
+        Intended to integrate smoothly with solve() (i.e. pass the k0s and prop consts from solve() as args here).
+        :param k0s: The k0 values that the propagation constants were solved at.
+        :param all_propagation_constants: A numpy array of numpy arrays of propagation constants for a particular k0.
+        :param rel_x: True if the x-axis of the plot (frequency) should be relative to the x-size (length) of the guide.
+        :return: The generated figure (created using plt.figure()). Can usually do nothing with this.
+        """
+        if rel_x:
+            x_label = r"$k_0 * a$"
+            a = self.x_max - self.x_min
+        else:
+            x_label = r"$k_0$"
+            # Set a = 1 (essentially do not factor in a for the x-axis)
+            a = 1
+        fig = plt.figure()
+        plt.xlabel(x_label)
+        plt.ylabel(r"$\beta / k_0$")
+        for i, prop_const in enumerate(all_propagation_constants):
+            plt.scatter(k0s[i] * a * np.ones(len(prop_const)), prop_const/k0s[i], color="blue", marker="o", facecolors='none')
+        return fig
+
+    def plot_fields(self, eigenvectors, num_x_points=100, num_y_points=100):
+        """
+        Plot the electric fields. The Ez fields are plotted on a color plot, and the Ex and Ey fields are plotted on
+        top of the color plot (on the same figure) as a vector field (using plt.quiver()).
+        :param eigenvectors: The eigenvectors needed to plot the fields.
+        :param num_x_points: The number of x points to calculate the electric field at.
+        :param num_y_points: The number of y points to calculate the electric field at.
+        :return: The generated figure (created using plt.figure()). Can usually do nothing with this.
+        """
+        # ----------------------FIELD PLOTTING--------------------------
+        # Find the minimum and maximum x and y values among the nodes:
+        # Create a rectangular grid of points that the geometry is inscribed in
+        num_x_points = 100
+        x_points = np.linspace(self.x_min, self.x_max, num_x_points)
+        num_y_points = 100
+        y_points = np.linspace(self.y_min, self.y_max, num_y_points)
+        Ez = np.zeros([num_x_points, num_y_points])
+        Ex = np.zeros([num_x_points, num_y_points])
+        Ey = np.zeros([num_x_points, num_y_points])
+
+        # Just used to skip over the transverse edge coefficients, the Ez coefficients come right after them
+        skip_tran = len(self.remap_inner_edge_nums)
+        # # The mode to show the fields for. This will tend to show the lowest possible mode first, but might not.
+        # # It really depends on the order of the beta values at that particular k0*a (frequency)
+        # mode = 0
+        # Iterate over the 100x100 grid of points we want to plot
+        for i in range(num_y_points):
+            pt_y = y_points[i]
+            for j in range(num_x_points):
+                pt_x = x_points[j]
+                element_num = -1
+                for k, element in enumerate(self.connectivity):
+                    # Check if the point is inside this element
+                    if element.is_inside(pt_x, pt_y):
+                        # The element this point lies in has been found, note it and stop searching
+                        element_num = k
+                        break
+                # If we found an element that the point lies in, calculate the fields. If not found, Ex, Ey, Ez = 0
+                if element_num != -1:
+                    # Get the phi values associated with each node
+                    phi1 = 0 if not element.nodes[0] in self.remap_inner_node_nums else eigenvectors[
+                        skip_tran + self.remap_inner_node_nums[element.nodes[0]]]
+                    phi2 = 0 if not element.nodes[1] in self.remap_inner_node_nums else eigenvectors[
+                        skip_tran + self.remap_inner_node_nums[element.nodes[1]]]
+                    phi3 = 0 if not element.nodes[2] in self.remap_inner_node_nums else eigenvectors[
+                        skip_tran + self.remap_inner_node_nums[element.nodes[2]]]
+                    # Interpolate to get Ez
+                    Ez[i, j] = element.nodal_interpolate(phi1, phi2, phi3, pt_x, pt_y)
+
+                    # Get the phi values associated with each edge
+                    phi1e = 0 if not element.edges[0] in self.remap_inner_edge_nums else eigenvectors[
+                        self.remap_inner_edge_nums[element.edges[0]]]
+                    phi2e = 0 if not element.edges[1] in self.remap_inner_edge_nums else eigenvectors[
+                        self.remap_inner_edge_nums[element.edges[1]]]
+                    phi3e = 0 if not element.edges[2] in self.remap_inner_edge_nums else eigenvectors[
+                        self.remap_inner_edge_nums[element.edges[2]]]
+                    # Interpolate to get Ex and Ey
+                    Ex[i, j], Ey[i, j] = element.edge_interpolate(phi1e, phi2e, phi3e, pt_x, pt_y)
+
+        plt.figure()
+        color_image = plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")
+        plt.colorbar(label="Ez")
+        X, Y = np.meshgrid(x_points, y_points)
+        skip = (slice(None, None, 5), slice(None, None, 5))
+        plt.quiver(X[skip], Y[skip], Ex[skip], Ey[skip], color="black")
+
+
+def plot_rect_waveguide_mode(m, n, a=2, b=1, k0a_start=1, k0a_end=8, new_fig=False):
+    """Plot the dispersion curve for the TE/TM mn mode (they look the same). a and b are the dimensions of waveguide."""
+    if new_fig:
+        plt.figure()
+    min_k0 = k0a_start / a
+    max_k0 = k0a_end / a
+    num_freqs = 1000
+    k0s = np.linspace(min_k0, max_k0, num_freqs)
+    betas = np.sqrt(k0s**2 - (m*np.pi/a)**2 - (n*np.pi/b)**2)
+    plt.plot(k0s*a, betas/k0s)
+
+
+if __name__ == '__main__':
+    # Turn on interactive mode for plotting. Causes plots to show without plt.show() and allows for debugging while
+    # the plots are visible and usable.
+    plt.ion()
+    # k0 = 1 is ~47.7 MHz
+    # connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = load_mesh("rectangular_waveguide.inp", 1, [1])
+
+    # Load a homogeneous rectangular waveguide with epsilon_r = 1
+    waveguide = Waveguide("rect_mesh_two_epsilons_coarse.inp", 2, [1, 1])
+    # Solve for the propagation constants and eigenvectors.
+    betas, all_eigenvectors, k0s = waveguide.solve()
+    # Plot the dispersion curve using the results.
+    waveguide.plot_dispersion(k0s, betas)
+    # Create the figure for plotting. Not needed if figure already created by Waveguide#plot_dispersion().
+    # plt.figure()
+    # plt.xlabel(r"$k_0 * a$")
+    # plt.ylabel(r"$\beta / k_0$")
+    # Analytical TE/TM Modes (the dispersion curves will look the same)
+    for i in range(3):
+        for j in range(3):
+            if i == j == 0:
+                continue
+            plot_rect_waveguide_mode(i, j)
+
+    # Plot the fields of the waveguide. all_eigenvectors[-1] gives a set of eigenvectors for the end k0.
+    # Indexing that set by [-1] gives the mode with the highest propagation constant for that k0.
+    # This is usually but not always the first propagating mode. It is always the highest beta / k0 value at the
+    # particular k0 value on the dispersion graph (see Waveguide#plot_dispersion()).
+    waveguide.plot_fields(all_eigenvectors[-1][-1])
+    print(f"Plot shown for beta/k0 = {betas[-1]/k0s[-1]}")
     # Do not need the below statement when plt.ion() is used
     # plt.show()

@@ -39,6 +39,13 @@ class Waveguide:
         """
         self.mode_index = -1 - mode_index
 
+    def get_selected_beta(self):
+        """
+        Get the beta value of the currently selected mode index (set using set_mode_index()).
+        :return: The beta value of the currently selected mode.
+        """
+        return self.betas[self.mode_index]
+
     def solve_k0(self, k0, verbose=False):
         """
         Solve for the propagation constants and eigenvectors of a waveguide at a particular k0.

@@ -248,7 +248,7 @@ class Waveguide:
             total_propagation_constants.append(eigenvalues)
             total_eigenvectors.append(eigenvectors)
 
-        return np.array(total_propagation_constants), np.array(total_eigenvectors), k0s
+        return np.array(total_propagation_constants, dtype=object), np.array(total_eigenvectors, dtype=object), k0s
 
     def plot_dispersion(self, k0s, all_propagation_constants, rel_x=True):
         """

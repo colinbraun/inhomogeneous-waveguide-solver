@@ -23,6 +23,21 @@ class Waveguide:
         self.y_min = np.amin(self.all_nodes[:, 1])
         self.x_max = np.amax(self.all_nodes[:, 0])
         self.y_max = np.amax(self.all_nodes[:, 1])
+        # The mode to choose for the propagation constant and eigenvector. Used in getting and plotting field data
+        # mode_index of -1 indicates the mode with the highest propagation constant. -2 is the next highest.
+        self.mode_index = -1
+        # Hold a copy of solutions for when the waveguide has been solved
+        self.betas = None
+        self.eigenvectors = None
+
+    def set_mode_index(self, mode_index):
+        """
+        Set the mode index. Essentially chooses which mode to use for getting and plotting field data.
+        Mode 0 indicates the mode with the highest propagation constant. Mode 1 is the next highest, and so on.
+        :param mode_index: The index of the desired mode.
+        :return: Nothing
+        """
+        self.mode_index = -1 - mode_index
 
     def solve_k0(self, k0, verbose=False):
         """
@@ -214,8 +229,11 @@ class Waveguide:
         eigenvectors = np.real(eigenvectors[p])
         # Find the first positive propagation constant
         first_pos = np.argwhere(eigenvalues >= 0)[0, 0]
+        betas, eigenvectors = np.sqrt(eigenvalues[first_pos:]), eigenvectors[first_pos:]
         # Return the \beta values and their corresponding eigenvectors
-        return np.sqrt(eigenvalues[first_pos:]), eigenvectors[first_pos:]
+        self.betas = betas
+        self.eigenvectors = eigenvectors
+        return betas, eigenvectors
 
     def solve(self, start_k0=-1, end_k0=-1, num_k0s=10, verbose=False):
         """
@@ -250,6 +268,51 @@ class Waveguide:
 
         return np.array(total_propagation_constants, dtype=object), np.array(total_eigenvectors, dtype=object), k0s
 
+    def get_field_at(self, x, y):
+        """
+        Compute the electric field at the point (x, y).
+        :param x: The x point to compute the field at.
+        :param y: The y point to compute the field at.
+        :return: A numpy array of length three containing (Ex, Ey, Ez) at the specified point.
+        """
+        ex, ey, ez = None, None, None
+        # For skipping transverse fields and accessing the longitudinal fields
+        skip_tran = len(self.remap_inner_edge_nums)
+
+        # Keep track of whether we have found the element this point lies in.
+        element_num = -1
+        for k, element in enumerate(self.connectivity):
+            # Check if the point is inside this element
+            if element.is_inside(x, y):
+                # The element this point lies in has been found, note it and stop searching
+                element_num = k
+                break
+        # If we found an element that the point lies in, calculate the fields. If not found, Ex, Ey, Ez = 0
+        if element_num != -1:
+            # Get the phi values associated with each node
+            phi1 = 0 if not element.nodes[0] in self.remap_inner_node_nums else self.eigenvectors[self.mode_index,
+                skip_tran + self.remap_inner_node_nums[element.nodes[0]]]
+            phi2 = 0 if not element.nodes[1] in self.remap_inner_node_nums else self.eigenvectors[self.mode_index,
+                skip_tran + self.remap_inner_node_nums[element.nodes[1]]]
+            phi3 = 0 if not element.nodes[2] in self.remap_inner_node_nums else self.eigenvectors[self.mode_index,
+                skip_tran + self.remap_inner_node_nums[element.nodes[2]]]
+            # Interpolate to get Ez
+            ez = element.nodal_interpolate(phi1, phi2, phi3, x, y)
+
+            # Get the phi values associated with each edge
+            phi1e = 0 if not element.edges[0] in self.remap_inner_edge_nums else self.eigenvectors[self.mode_index,
+                self.remap_inner_edge_nums[element.edges[0]]]
+            phi2e = 0 if not element.edges[1] in self.remap_inner_edge_nums else self.eigenvectors[self.mode_index,
+                self.remap_inner_edge_nums[element.edges[1]]]
+            phi3e = 0 if not element.edges[2] in self.remap_inner_edge_nums else self.eigenvectors[self.mode_index,
+                self.remap_inner_edge_nums[element.edges[2]]]
+            # Interpolate to get Ex and Ey
+            ex, ey = element.edge_interpolate(phi1e, phi2e, phi3e, x, y)
+        else:
+            raise RuntimeError(f"Electric field requested at point ({x}, {y}) lies outside the geometry")
+
+        return np.array([ex, ey, ez])
+
     def plot_dispersion(self, k0s, all_propagation_constants, rel_x=True):
         """
         Plot the Dispersion curves given the propagation constants. Creates a new figure in the process.
@@ -273,11 +336,10 @@ class Waveguide:
             plt.scatter(k0s[i] * a * np.ones(len(prop_const)), prop_const/k0s[i], color="blue", marker="o", facecolors='none')
         return fig
 
-    def plot_fields(self, eigenvectors, num_x_points=100, num_y_points=100):
+    def plot_fields(self, num_x_points=100, num_y_points=100):
         """
         Plot the electric fields. The Ez fields are plotted on a color plot, and the Ex and Ey fields are plotted on
         top of the color plot (on the same figure) as a vector field (using plt.quiver()).
-        :param eigenvectors: The eigenvectors needed to plot the fields.
         :param num_x_points: The number of x points to calculate the electric field at.
         :param num_y_points: The number of y points to calculate the electric field at.
         :return: The generated figure (created using plt.figure()). Can usually do nothing with this.
@@ -303,34 +365,7 @@ class Waveguide:
             pt_y = y_points[i]
             for j in range(num_x_points):
                 pt_x = x_points[j]
-                element_num = -1
-                for k, element in enumerate(self.connectivity):
-                    # Check if the point is inside this element
-                    if element.is_inside(pt_x, pt_y):
-                        # The element this point lies in has been found, note it and stop searching
-                        element_num = k
-                        break
-                # If we found an element that the point lies in, calculate the fields. If not found, Ex, Ey, Ez = 0
-                if element_num != -1:
-                    # Get the phi values associated with each node
-                    phi1 = 0 if not element.nodes[0] in self.remap_inner_node_nums else eigenvectors[
-                        skip_tran + self.remap_inner_node_nums[element.nodes[0]]]
-                    phi2 = 0 if not element.nodes[1] in self.remap_inner_node_nums else eigenvectors[
-                        skip_tran + self.remap_inner_node_nums[element.nodes[1]]]
-                    phi3 = 0 if not element.nodes[2] in self.remap_inner_node_nums else eigenvectors[
-                        skip_tran + self.remap_inner_node_nums[element.nodes[2]]]
-                    # Interpolate to get Ez
-                    Ez[i, j] = element.nodal_interpolate(phi1, phi2, phi3, pt_x, pt_y)
-
-                    # Get the phi values associated with each edge
-                    phi1e = 0 if not element.edges[0] in self.remap_inner_edge_nums else eigenvectors[
-                        self.remap_inner_edge_nums[element.edges[0]]]
-                    phi2e = 0 if not element.edges[1] in self.remap_inner_edge_nums else eigenvectors[
-                        self.remap_inner_edge_nums[element.edges[1]]]
-                    phi3e = 0 if not element.edges[2] in self.remap_inner_edge_nums else eigenvectors[
-                        self.remap_inner_edge_nums[element.edges[2]]]
-                    # Interpolate to get Ex and Ey
-                    Ex[i, j], Ey[i, j] = element.edge_interpolate(phi1e, phi2e, phi3e, pt_x, pt_y)
+                Ex[i, j], Ey[i, j], Ez[i, j] = self.get_field_at(pt_x, pt_y)
 
         plt.figure()
         color_image = plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")

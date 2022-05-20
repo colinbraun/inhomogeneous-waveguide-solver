@@ -29,6 +29,8 @@ class Waveguide:
         # Hold a copy of solutions for when the waveguide has been solved
         self.betas = None
         self.eigenvectors = None
+        # Store the k0 value of the current solution
+        self.k0 = -1
 
     def set_mode_index(self, mode_index):
         """
@@ -56,6 +58,8 @@ class Waveguide:
         for the k0. Each array is sorted by propagation constant. Eigenvectors are stored as rows in the returned numpy
         array, not columns.
         """
+        # Store the k0 being used as the solution
+        self.k0 = k0
         # Load the mesh from the file
         connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
         # Debug statements

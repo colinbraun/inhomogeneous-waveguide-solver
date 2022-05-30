@@ -10,14 +10,15 @@ epsilon0 = 8.8541878128E-12
 
 class Waveguide:
 
-    def __init__(self, filename, num_surfaces, permittivities):
+    def __init__(self, filename, surface_names, boundary_name, permittivities=None):
         """
         Constructor for a waveguide. Can be inhomogeneous and any shape.
         :param filename: The name of the abaqus file (.inp) to be used for this Waveguide object.
-        :param num_surfaces: The number of surfaces that compose the waveguide.
-        :param permittivities: The corresponding permittivities of each surface as a list.
+        :param surface_names: A list containing the names of each surface of the mesh in the .inp file.
+        :param boundary_name: A string of the name of the boundary nodes of the mesh in the .inp file.
+        :param permittivities: The corresponding permittivities of each surface as a list. Passing None will assign 1.
         """
-        self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, num_surfaces, permittivities)
+        self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, surface_names, boundary_name, permittivities)
         # Compute the bounds of the waveguide
         self.x_min = np.amin(self.all_nodes[:, 0])
         self.y_min = np.amin(self.all_nodes[:, 1])

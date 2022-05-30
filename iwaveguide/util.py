@@ -45,27 +45,29 @@ class Edge:
 
 class Element:
     """A class representing an Element (containing 3 global node numbers and 3 global edge numbers, as well as a permittivity) """
-    all_nodes = []
-    all_edges = []
 
-    def __init__(self, nodes, edges, permittivity):
+    def __init__(self, nodes, edges, permittivity, all_nodes, all_edges):
         """
-        :param nodes: Three global node numbers as a numpy array
-        :param edges: Three global edge numbers as a numpy array
-        :param permittivity: The permittivity associated with this element
+        :param nodes: Three global node numbers as a numpy array.
+        :param edges: Three global edge numbers as a numpy array.
+        :param permittivity: The permittivity associated with this element.
+        :param all_nodes: A numpy array from global node number to node data (numpy array with 2 elements, x and y).
+        :param all_edges: A numpy array from global edge number to edge data (Edge objects).
         """
         self.nodes = nodes
         self.edges = edges
         self.permittivity = permittivity
+        self.all_nodes = all_nodes
+        self.all_edges = all_edges
 
     def area(self):
         """
         Compute the area of this element
         :return: The area of the triangle element
         """
-        x1, y1 = Element.all_nodes[self.nodes[0]]
-        x2, y2 = Element.all_nodes[self.nodes[1]]
-        x3, y3 = Element.all_nodes[self.nodes[2]]
+        x1, y1 = self.all_nodes[self.nodes[0]]
+        x2, y2 = self.all_nodes[self.nodes[1]]
+        x3, y3 = self.all_nodes[self.nodes[2]]
         return area(x1, y1, x2, y2, x3, y3)
 
     def is_inside(self, x, y):
@@ -75,7 +77,7 @@ class Element:
         :param y: The y coordinate of the point
         :return: True if the point lies in the triangle element, false otherwise
         """
-        node1, node2, node3 = Element.all_nodes[self.nodes[0]], Element.all_nodes[self.nodes[1]], Element.all_nodes[self.nodes[2]]
+        node1, node2, node3 = self.all_nodes[self.nodes[0]], self.all_nodes[self.nodes[1]], self.all_nodes[self.nodes[2]]
         return is_inside(node1, node2, node3, x, y)
 
     def is_adjacent_to(self, element):
@@ -94,9 +96,9 @@ class Element:
         return node_count == 2
 
     def nodal_interpolate(self, phi1, phi2, phi3, x, y):
-        x1, y1 = Element.all_nodes[self.nodes[0]][0], Element.all_nodes[self.nodes[0]][1]
-        x2, y2 = Element.all_nodes[self.nodes[1]][0], Element.all_nodes[self.nodes[1]][1]
-        x3, y3 = Element.all_nodes[self.nodes[2]][0], Element.all_nodes[self.nodes[2]][1]
+        x1, y1 = self.all_nodes[self.nodes[0]][0], self.all_nodes[self.nodes[0]][1]
+        x2, y2 = self.all_nodes[self.nodes[1]][0], self.all_nodes[self.nodes[1]][1]
+        x3, y3 = self.all_nodes[self.nodes[2]][0], self.all_nodes[self.nodes[2]][1]
         a1 = x2 * y3 - x3 * y2
         a2 = x3 * y1 - x1 * y3
         a3 = x1 * y2 - x2 * y1
@@ -146,7 +148,7 @@ class Element:
         #     count += 1
         for edge_number in self.edges:
             # Generate the edge from 2 of the nodes (done in a CCW fashion by choice of tuples in for loop)
-            edge = Element.all_edges[edge_number]
+            edge = self.all_edges[edge_number]
             # TODO: Fix the below statement so that it doesn't print TRUE
             # if edge != Element.all_edges[self.edges[count]]:
             #     print("TRUE")
@@ -174,7 +176,7 @@ class Element:
 
             # Create the ccw node list started from the first node of the edge
             # nodes_lk = (Element.all_nodes[self.nodes[l]], Element.all_nodes[self.nodes[k]], Element.all_nodes[self.nodes[m]])
-            nodes_lk = (Element.all_nodes[self.nodes[n1_index]], Element.all_nodes[self.nodes[n2_index]], Element.all_nodes[self.nodes[n3_index]])
+            nodes_lk = (self.all_nodes[self.nodes[n1_index]], self.all_nodes[self.nodes[n2_index]], self.all_nodes[self.nodes[n3_index]])
 
             a_i_l, a_j_l = nodes_lk[1][0] * nodes_lk[2][1] - nodes_lk[2][0] * nodes_lk[1][1], nodes_lk[2][0] * nodes_lk[0][1] - nodes_lk[0][0] * nodes_lk[2][1]
             b_i_l, b_j_l = nodes_lk[1][1] - nodes_lk[2][1], nodes_lk[2][1] - nodes_lk[0][1]
@@ -198,26 +200,25 @@ class Element:
         return False
 
 
-def load_mesh(filename, num_surfaces=1, permittivities=None):
+def load_mesh_block(filename, block_name):
     """
-    Load a mesh from a file. Must have at least 2 blocks, one containing all surface element_to_node_conn, the other the edge ones.
-    :param filename: The name of the mesh file (a .inp a.k.a. abaqus file) to load
-    :param num_surfaces: The number of surfaces in the .inp file (for different permittivities)
-    :param permittivities: The permittivities corresponding to each surface.
-    :return: A number of items. See comments at bottom of this function, above the return statement.
+    A function to load a block of data from a .inp file (abaqus format).
+    Note that the node or element numbers are chopped off from the returned data.
+    Node numbers contained in blocks of elements should be used as indices into the ALLNODES block.
+    :param filename: The file to load the block of mesh data from
+    :param block_name: The name of the block in the file that should be loaded
+    :return: A 2D numpy array, each row containing a node or element (element can be 2D or 3D)
     """
-    # If we aren't provided permittivities, just assume they are all epsilon_r = 1
-    if permittivities is None:
-        permittivities = [1 for i in range(num_surfaces)]
+
     with open(filename, 'r') as file:
         lines = file.readlines()
         count = 0
         line = lines[count]
-        # Go until we get to the nodes section of the file
-        while "NODE" not in line:
+        # Go until we get to named section
+        while block_name not in line:
             count += 1
             line = lines[count]
-        # Skip over the line with "NODE" in it
+        # Skip over the line with the block_name in it
         count += 1
         line = lines[count]
         skip = count
@@ -226,92 +227,83 @@ def load_mesh(filename, num_surfaces=1, permittivities=None):
             line = lines[count]
         rows = count - skip
         # Load all the node information into a numpy array, slicing off the node numbers (these are implied by index)
-        all_nodes = np.loadtxt(filename, skiprows=skip, max_rows=rows, delimiter=',')[:, 1:]
-        # Provide a global copy of the nodes (this will mean that multiple calls to this function can be problematic)
-        Element.all_nodes = all_nodes
+        # If we are dealing with elements, subtract off 1 so that the global node numbers work as indices
+        if block_name != "ALLNODES":
+            data = np.subtract(np.loadtxt(filename, skiprows=skip, max_rows=rows, delimiter=',', dtype=np.int32)[:, 1:], 1)
+        else:
+            data = np.loadtxt(filename, skiprows=skip, max_rows=rows, delimiter=',')[:, 1:]
+        return data
 
-        # CONSTRUCT ELEMENT NODE CONNECTIVITY LIST FOR EACH SURFACE
-        surfaces_node_connectivity = []
-        surfaces_edge_connectivity = []
 
-        # All the edges (the index is the global edge number, i.e. all_edges[0] gets edge w/ global edge number 0)
-        all_edges = []
-        # A temporary map from an edge object to its global edge number (MUCH lower computational complexity)
-        all_edges_map = {}
-        # Keep track of what edge number we are on
-        edge_count = 0
-        # Iterate over all the surfaces in the .inp file
-        for i in range(num_surfaces):
-            # Go until we get to one of the surfaces (consisting of elements) in the .inp file
-            while "ELEMENT" not in line:
-                count += 1
-                line = lines[count]
-            count += 1
-            line = lines[count]
-            skip = count
-            # Odd case where we have both a * and element on the same line as the only in-betweener of the surfaces
-            if i >= 1:
-                skip = skip - 1
-            while "*" not in line:
-                line = lines[count]
-                count += 1
-            rows = count - skip - 1
+def load_mesh(filename, surface_names, boundary_name, permittivities=None):
+    """
+    Load a mesh from a file. Must have at least 2 blocks, one containing all surface element_to_node_conn, the other the edge ones.
+    :param filename: The name of the mesh file (a .inp a.k.a. abaqus file) to load.
+    :param surface_names: A list containing the names of each surface of the mesh in the .inp file.
+    :param boundary_name: A string of the name of the boundary nodes of the mesh in the .inp file.
+    :param permittivities: The permittivities corresponding to each surface. Default = 1 for all surfaces.
+    :return: A number of items. See comments at bottom of this function, above the return statement.
+    """
+    # If we aren't provided permittivities, just assume they are all epsilon_r = 1
+    if permittivities is None:
+        permittivities = [1 for i in range(len(surface_names))]
+    all_nodes = load_mesh_block(filename, "ALLNODES")
+    # Provide a global copy of the nodes (this will mean that multiple calls to this function can be problematic)
+    Element.all_nodes = all_nodes
 
-            # Load the elements' global nodes. This is our nodal connectivity list for this particular surface
-            # Once again, slice off the element number, this is implied by the index into the array.
-            # 1 is subtracted from each global node number so it aligns with starting at index 0 in the all_nodes array
-            element_to_node_conn = np.subtract(np.loadtxt(filename, skiprows=skip, max_rows=rows, delimiter=',', dtype=np.int32)[:, 1:], 1)
+    # CONSTRUCT ELEMENT NODE CONNECTIVITY LIST FOR EACH SURFACE
+    surfaces_node_connectivity = []
+    surfaces_edge_connectivity = []
 
-            # EDGE SHENANIGANS
-            # TODO: MAKE SURE NOTHING FUNNY GOING ON WITH CCW VS CW ROTATION
-            # The element-to-edge connectivity list
-            element_to_edge_conn = []
-            # Iterate over each element in the nodal connectivity list
-            for element in element_to_node_conn:
-                # Construct 3 edges
-                edge1 = Edge(element[0], element[1])
-                edge2 = Edge(element[0], element[2])
-                edge3 = Edge(element[1], element[2])
-                # For each of the 3 edges in this element, check if we have created this edge before. If not, create it.
-                for edge in (edge1, edge2, edge3):
-                    if edge in all_edges_map:
-                        # We do not want duplicate edges in our "all_edges" (global edge) list
-                        pass
-                    else:
-                        # Otherwise, we have not come across this edge before, so add it
-                        all_edges.append(edge)
-                        all_edges_map[edge] = edge_count
-                        edge_count += 1
-                # Get the global edge numbers for these 3 edges
-                edge1_number = all_edges_map[edge1]
-                edge2_number = all_edges_map[edge2]
-                edge3_number = all_edges_map[edge3]
-                # Add the element_to_node_conn global edge numbers to the connectivity list
-                element_to_edge_conn.append(np.array([edge1_number, edge2_number, edge3_number]))
+    # All the edges (the index is the global edge number, i.e. all_edges[0] gets edge w/ global edge number 0)
+    all_edges = []
+    # A temporary map from an edge object to its global edge number (MUCH lower computational complexity)
+    all_edges_map = {}
+    # Keep track of what edge number we are on
+    edge_count = 0
+    # Iterate over all the surfaces in the .inp file
+    for i in range(len(surface_names)):
+        # Load the elements' global nodes. This is our nodal connectivity list for this particular surface
+        element_to_node_conn = load_mesh_block(filename, surface_names[i])
+        # EDGE SHENANIGANS
+        # TODO: MAKE SURE NOTHING FUNNY GOING ON WITH CCW VS CW ROTATION
+        # The element-to-edge connectivity list
+        element_to_edge_conn = []
+        # Iterate over each element in the nodal connectivity list
+        for element in element_to_node_conn:
+            # Construct 3 edges
+            edge1 = Edge(element[0], element[1])
+            edge2 = Edge(element[0], element[2])
+            edge3 = Edge(element[1], element[2])
+            # For each of the 3 edges in this element, check if we have created this edge before. If not, create it.
+            for edge in (edge1, edge2, edge3):
+                if edge in all_edges_map:
+                    # We do not want duplicate edges in our "all_edges" (global edge) list
+                    pass
+                else:
+                    # Otherwise, we have not come across this edge before, so add it
+                    all_edges.append(edge)
+                    all_edges_map[edge] = edge_count
+                    edge_count += 1
+            # Get the global edge numbers for these 3 edges
+            edge1_number = all_edges_map[edge1]
+            edge2_number = all_edges_map[edge2]
+            edge3_number = all_edges_map[edge3]
+            # Add the element_to_node_conn global edge numbers to the connectivity list
+            element_to_edge_conn.append(np.array([edge1_number, edge2_number, edge3_number]))
 
-            # Transform into numpy array
-            element_to_edge_conn = np.array(element_to_edge_conn)
-            # Add to edge connectivity list to complete list of edge connectivity lists
-            surfaces_edge_connectivity.append(element_to_edge_conn)
-            # Add nodal connectivity list to complete list of node connectivity lists
-            surfaces_node_connectivity.append(element_to_node_conn)
+        # Transform into numpy array
+        element_to_edge_conn = np.array(element_to_edge_conn)
+        # Add to edge connectivity list to complete list of edge connectivity lists
+        surfaces_edge_connectivity.append(element_to_edge_conn)
+        # Add nodal connectivity list to complete list of node connectivity lists
+        surfaces_node_connectivity.append(element_to_node_conn)
 
-        # Convert to numpy array
-        all_edges = np.array(all_edges)
-        Element.all_edges = all_edges
+    # Convert to numpy array
+    all_edges = np.array(all_edges)
 
-        # Go until we get to the boundary element block of the .inp file
-        while "ELEMENT" not in line:
-            line = lines[count]
-            count += 1
-        skip = count
-        line = lines[count]
-        while "*" not in line:
-            line = lines[count]
-            count += 1
-        rows = count - skip - 1
-        # Load the boundary elements
-        boundary_elements = np.subtract(np.loadtxt(filename, skiprows=skip, max_rows=rows, delimiter=',', dtype=np.int32)[:, 1:], 1)
+    # Go until we get to the boundary element block of the .inp file
+    boundary_elements = load_mesh_block(filename, boundary_name)
 
     # Get the set of all global node numbers that lie on the boundary of the geometry
     boundary_node_numbers = set(np.unique(boundary_elements))
@@ -363,7 +355,7 @@ def load_mesh(filename, num_surfaces=1, permittivities=None):
     for i in range(len(surfaces_edge_connectivity)):
         for j in range(len(surfaces_edge_connectivity[i])):
             # permittivity = permittivities[i]
-            elements.append(Element(surfaces_node_connectivity[i][j], surfaces_edge_connectivity[i][j], permittivities[i]))
+            elements.append(Element(surfaces_node_connectivity[i][j], surfaces_edge_connectivity[i][j], permittivities[i], all_nodes, all_edges))
     # Transform into numpy array
     elements = np.array(elements)
 

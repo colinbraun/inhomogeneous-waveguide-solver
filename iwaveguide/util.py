@@ -65,9 +65,9 @@ class Element:
         Compute the area of this element
         :return: The area of the triangle element
         """
-        x1, y1 = self.all_nodes[self.nodes[0]]
-        x2, y2 = self.all_nodes[self.nodes[1]]
-        x3, y3 = self.all_nodes[self.nodes[2]]
+        x1, y1 = self.all_nodes[self.nodes[0]][0:2]
+        x2, y2 = self.all_nodes[self.nodes[1]][0:2]
+        x3, y3 = self.all_nodes[self.nodes[2]][0:2]
         return area(x1, y1, x2, y2, x3, y3)
 
     def is_inside(self, x, y):

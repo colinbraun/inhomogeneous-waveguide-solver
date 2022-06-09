@@ -308,7 +308,11 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     # Get the set of all global node numbers that lie on the boundary of the geometry
     boundary_node_numbers = set(np.unique(boundary_elements))
     # Get the set of non-boundary global node numbers
-    inner_node_numbers = set(np.arange(0, len(all_nodes))) - boundary_node_numbers
+    # inner_node_numbers = set(np.arange(0, len(all_nodes))) - boundary_node_numbers
+    total_nodes = []
+    for surface in surfaces_node_connectivity:
+        total_nodes += [node for node in surface]
+    inner_node_numbers = set(np.unique(np.array(total_nodes))) - boundary_node_numbers
     # A map that takes one of the inner node numbers and maps it to a unique integer between [0, number of inner nodes]
     remap_inner_node_nums = {item: i for i, item in enumerate(inner_node_numbers)}
     # Old version of above list comprehension

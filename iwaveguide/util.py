@@ -160,19 +160,19 @@ class Element:
             # n2_index = self.nodes.index(node2)
             # print(str(n1_index[0][0]) + str(n2_index[0][0]))
             negate = 1
-            match str(n1_index) + str(n2_index):
-                case "01":
-                    n3_index = 2
-                case "02":
-                    n1_index, n2_index, n3_index, negate = 2, 0, 1, -1
-                case "10":
-                    n1_index, n2_index, n3_index, negate = 0, 1, 2, -1
-                case "12":
-                    n1_index, n2_index, n3_index = 1, 2, 0
-                case "20":
-                    n1_index, n2_index, n3_index = 2, 0, 1
-                case "21":
-                    n1_index, n2_index, n3_index, negate = 1, 2, 0, -1
+            combined = str(n1_index) + str(n2_index)
+            if combined == "01":
+                n3_index = 2
+            elif combined == "02":
+                n1_index, n2_index, n3_index, negate = 2, 0, 1, -1
+            elif combined == "10":
+                n1_index, n2_index, n3_index, negate = 0, 1, 2, -1
+            elif combined == "12":
+                n1_index, n2_index, n3_index = 1, 2, 0
+            elif combined == "20":
+                n1_index, n2_index, n3_index = 2, 0, 1
+            elif combined == "21":
+                n1_index, n2_index, n3_index, negate = 1, 2, 0, -1
 
             # Create the ccw node list started from the first node of the edge
             # nodes_lk = (Element.all_nodes[self.nodes[l]], Element.all_nodes[self.nodes[k]], Element.all_nodes[self.nodes[m]])

@@ -248,6 +248,33 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     if permittivities is None:
         permittivities = [1 for i in range(len(surface_names))]
     all_nodes = load_mesh_block(filename, "ALLNODES")
+    # Check if we are dealing with a 3D mesh
+    if all_nodes.shape[1] == 3:
+        # Get 3 points that lie in the plane
+        plane_points = all_nodes[load_mesh_block(filename, surface_names[0])[0]]
+        v1 = plane_points[1] - plane_points[0]
+        v2 = plane_points[2] - plane_points[0]
+        # Compute the normal to the plane
+        n = np.cross(v1, v2)
+        # Normalize it
+        n = n / math.sqrt(n[0]**2 + n[1]**2 + n[2]**2)
+        # Get the constants for the plane equation
+        a, b, c = n[0], n[1], n[2]
+        d = -(plane_points[0]*a + plane_points[1]*b + plane_points[2]*c)
+        cos_theta = c / math.sqrt(a**2 + b**2 + c**2)
+        sin_theta = math.sqrt((a**2 + b**2) / (a**2 + b**2 + c**2))
+        u1 = b / math.sqrt(a**2 + b**2 + c**2)
+        u2 = -a / math.sqrt(a**2 + b**2 + c**2)
+        rotation = np.array([[cos_theta + u1**2*(1-cos_theta), u1*u2*(1-cos_theta), u2*sin_theta],
+                             [u1*u2*(1-cos_theta), cos_theta + u2**2*(1-cos_theta), -u1*sin_theta],
+                             [-u2*sin_theta, u1*sin_theta, cos_theta]])
+        # Create the inverse
+        un_rotation = np.linalg.inv(rotation)
+        # Hit all points with the rotation
+        p1 = rotation @ plane_points[0]
+        p2 = rotation @ plane_points[1]
+        p3 = un_rotation @ rotation @ plane_points[2]
+        all_nodes = np.array([rotation @ node for node in all_nodes])
     # Provide a global copy of the nodes (this will mean that multiple calls to this function can be problematic)
     Element.all_nodes = all_nodes
 

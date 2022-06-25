@@ -407,10 +407,11 @@ def sign(p1, p2, p3):
 # lies inside the triangle formed by
 # A(x1, y1), B(x2, y2) and C(x3, y3)
 def is_inside(pt1, pt2, pt3, x, y):
-    if sign((x, y), pt1, pt2) < 0.0:
-        return False
-    if sign((x, y), pt2, pt3) < 0.0:
-        return False
-    if sign((x, y), pt3, pt1) < 0.0:
-        return False
-    return True
+    d1 = sign((x, y), pt1, pt2)
+    d2 = sign((x, y), pt2, pt3)
+    d3 = sign((x, y), pt3, pt1)
+
+    has_neg = (d1 < 0) or (d2 < 0) or (d3 < 0)
+    has_pos = (d1 > 0) or (d2 > 0) or (d3 > 0)
+    return not (has_neg and has_pos)
+

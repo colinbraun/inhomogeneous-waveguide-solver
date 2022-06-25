@@ -10,8 +10,8 @@ if __name__ == '__main__':
 
     # Load a homogeneous rectangular waveguide with epsilon_r = 1
     # waveguide = Waveguide("rect_mesh_two_epsilons_coarse.inp", ["EB1", "EB2"], "EB3")
-    # waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2")
-    waveguide = Waveguide("z_plane_mesh.inp", ["EB1"], "EB2")
+    waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2")
+    # waveguide = Waveguide("z_plane_mesh.inp", ["EB1"], "EB2")
     # Solve for the propagation constants and eigenvectors.
     betas, all_eigenvectors, k0s = waveguide.solve()
     # Plot the dispersion curve using the results.

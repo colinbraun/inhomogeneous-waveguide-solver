@@ -107,7 +107,7 @@ class Waveguide:
             # Iterate over the 3 edges of the element
             for l, k in ((0, 1), (1, 2), (2, 0)):
                 # The first edge whose basis vector will be integrated against another edge (edge2)
-                edge1 = Edge(nodes[l], nodes[k])
+                edge1 = Edge(nodes[l], nodes[k], self.all_nodes)
                 # Skip edges on the boundary
                 if all_edges_map[edge1] in boundary_edge_numbers:
                     continue
@@ -118,7 +118,7 @@ class Waveguide:
                 # Iterate over the 3 edges of the element (p stands for prime here, see Jin's book pg 455)
                 for l_p, k_p in ((0, 1), (1, 2), (2, 0)):
                     # The second edge whose basis vector will be integrated against another edge (edge1)
-                    edge2 = Edge(nodes[l_p], nodes[k_p])
+                    edge2 = Edge(nodes[l_p], nodes[k_p], self.all_nodes)
                     # Skip edges on the boundary
                     if all_edges_map[edge2] in boundary_edge_numbers:
                         continue
@@ -194,7 +194,7 @@ class Waveguide:
                 if nodes[i] in boundary_node_numbers:
                     continue
                 for l, k in ((0, 1), (1, 2), (2, 0)):
-                    edge1 = Edge(nodes[l], nodes[k])
+                    edge1 = Edge(nodes[l], nodes[k], self.all_nodes)
                     # Skip the boundary edges
                     if all_edges_map[edge1] in boundary_edge_numbers:
                         continue

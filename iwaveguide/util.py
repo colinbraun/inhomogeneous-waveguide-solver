@@ -4,27 +4,27 @@ import math
 
 class Edge:
     """Class representing an edge. Immutable (Values should only be read from, not written to)."""
-    def __init__(self, node1, node2):
+    def __init__(self, node1, node2, all_nodes):
         """
         Constructor
         :param node1: The global node number of the first node of the edge
         :param node2: The global node number of the second node of the edge
+        :param all_nodes: A numpy array of all the nodes. ``node1`` and ``node2`` are indices into this array."
         """
         self.node1 = node1
         self.node2 = node2
-        # print(len(Element.all_nodes))
-        node1_t, node2_t = Element.all_nodes[node1], Element.all_nodes[node2]
-        # TODO: Evaluate whether the sign should be considered or not (currently does assign it a sign)
+        self.all_nodes = all_nodes
+        node1_t, node2_t = all_nodes[node1], all_nodes[node2]
         sign_multiplier = 1 if node1 < node2 else -1
         self.length = sign_multiplier * math.sqrt((node2_t[0] - node1_t[0])**2 + (node2_t[1] - node1_t[1])**2)
 
     def flip(self):
         """Return a copy of this object with the node numbers switched"""
-        return Edge(self.node2, self.node1)
+        return Edge(self.node2, self.node1, self.all_nodes)
 
     def line(self):
         """Return a tuple of matrices, the first containing a list of 2 x points, the second of y points"""
-        return [Element.all_nodes[self.node1][0], Element.all_nodes[self.node2][0]], [Element.all_nodes[self.node1][1], Element.all_nodes[self.node2][1]]
+        return [self.all_nodes[self.node1][0], self.all_nodes[self.node2][0]], [self.all_nodes[self.node1][1], self.all_nodes[self.node2][1]]
 
     def __eq__(self, other):
         """Edges are considered equal if they have the same global node numbers"""
@@ -35,12 +35,13 @@ class Edge:
         Hash the edge object for fast performance on maps/sets.
         Two edges with flipped node numbers produce the same hash value (are considered equal when compared thru map/set)
         """
-        if self.node1 < self.node2:
-            hash_value = (self.node1, self.node2).__hash__()
-        else:
-            hash_value = (self.node2, self.node1).__hash__()
-        # print(f"Hash value: {hash_value}")
-        return hash_value
+        # if self.node1 < self.node2:
+        #     hash_value = (self.node1, self.node2).__hash__()
+        # else:
+        #     hash_value = (self.node2, self.node1).__hash__()
+        # # print(f"Hash value: {hash_value}")
+        # return hash_value
+        return hash(tuple(sorted((self.node1, self.node2))))
 
 
 class Element:
@@ -109,7 +110,6 @@ class Element:
         c2 = x1 - x3
         c3 = x2 - x1
 
-        # area = 0.5 * (b1 * c2 - b2 * c1)
         n1 = phi1 * (a1 + b1 * x + c1 * y)
         n2 = phi2 * (a2 + b2 * x + c2 * y)
         n3 = phi3 * (a3 + b3 * x + c3 * y)
@@ -149,16 +149,9 @@ class Element:
         for edge_number in self.edges:
             # Generate the edge from 2 of the nodes (done in a CCW fashion by choice of tuples in for loop)
             edge = self.all_edges[edge_number]
-            # TODO: Fix the below statement so that it doesn't print TRUE
-            # if edge != Element.all_edges[self.edges[count]]:
-            #     print("TRUE")
-            # Index of the third node (the one not making up the edge) going in a CCW fashion
             node1, node2 = edge.node1, edge.node2
-            node3 = set(self.nodes).difference({node1, node2}).pop()
             n1_index = np.where(self.nodes == node1)[0][0]
             n2_index = np.where(self.nodes == node2)[0][0]
-            # n2_index = self.nodes.index(node2)
-            # print(str(n1_index[0][0]) + str(n2_index[0][0]))
             negate = 1
             combined = str(n1_index) + str(n2_index)
             if combined == "01":
@@ -173,6 +166,8 @@ class Element:
                 n1_index, n2_index, n3_index = 2, 0, 1
             elif combined == "21":
                 n1_index, n2_index, n3_index, negate = 1, 2, 0, -1
+            else:
+                raise RuntimeError(f"Encountered index combination 'combined={combined}'.")
 
             # Create the ccw node list started from the first node of the edge
             # nodes_lk = (Element.all_nodes[self.nodes[l]], Element.all_nodes[self.nodes[k]], Element.all_nodes[self.nodes[m]])
@@ -184,8 +179,6 @@ class Element:
 
             A_l = a_i_l * b_j_l - a_j_l * b_i_l
             B_l = c_i_l * b_j_l - c_j_l * b_i_l
-            # Fix this like the other spots
-            # C_l = a_i_l * c_j_l - b_j_l * c_i_l
             C_l = a_i_l * c_j_l - a_j_l * c_i_l
             D_l = b_i_l * c_j_l - b_j_l * c_i_l
 
@@ -274,9 +267,8 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
         p1 = rotation @ plane_points[0]
         p2 = rotation @ plane_points[1]
         p3 = un_rotation @ rotation @ plane_points[2]
-        all_nodes = np.array([rotation @ node for node in all_nodes])
-    # Provide a global copy of the nodes (this will mean that multiple calls to this function can be problematic)
-    Element.all_nodes = all_nodes
+        # TODO: Finish testing this 3D rotation idea. Seems to be working, but commenting out for now for testing in 3D
+        # all_nodes = np.array([rotation @ node for node in all_nodes])
 
     # CONSTRUCT ELEMENT NODE CONNECTIVITY LIST FOR EACH SURFACE
     surfaces_node_connectivity = []
@@ -299,9 +291,9 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
         # Iterate over each element in the nodal connectivity list
         for element in element_to_node_conn:
             # Construct 3 edges
-            edge1 = Edge(element[0], element[1])
-            edge2 = Edge(element[0], element[2])
-            edge3 = Edge(element[1], element[2])
+            edge1 = Edge(element[0], element[1], all_nodes)
+            edge2 = Edge(element[0], element[2], all_nodes)
+            edge3 = Edge(element[1], element[2], all_nodes)
             # For each of the 3 edges in this element, check if we have created this edge before. If not, create it.
             for edge in (edge1, edge2, edge3):
                 if edge in all_edges_map:
@@ -346,7 +338,7 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     # for i, item in enumerate(inner_node_numbers):
         # remap_inner_node_nums[item] = i
     # Get a list of edges on the boundary (not a set, we will want the set of the global edge numbers, not the edges)
-    boundary_edges = [Edge(element[0], element[1]) for element in boundary_elements]
+    boundary_edges = [Edge(element[0], element[1], all_nodes) for element in boundary_elements]
 
     # DEBUG CODE TO MAKE SURE THINGS ARE WORKING PROPERLY. CAN REMOVE WHEN THOROUGHLY TESTED
     # Make sure that each edge in the boundary edges exists in the set of all edges

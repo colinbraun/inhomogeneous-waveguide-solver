@@ -62,11 +62,6 @@ class Waveguide:
         self.k0 = k0
         # Load the mesh from the file
         connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
-        # Compute the bounds of the waveguide
-        x_min = np.amin(all_nodes[:, 0])
-        y_min = np.amin(all_nodes[:, 1])
-        x_max = np.amax(all_nodes[:, 0])
-        y_max = np.amax(all_nodes[:, 1])
 
         # Create empty matrices
         Att = np.zeros([len(remap_inner_edge_nums), len(remap_inner_edge_nums)])
@@ -84,7 +79,7 @@ class Waveguide:
         for n, element in enumerate(connectivity):
             # Get the nodes and edges that make up this element (avoids writing element.nodes[#], element.edges[#] later)
             nodes = element.nodes
-            edges = element.edges
+            # edges = element.edges
 
             # The area of the element
             area = element.area()
@@ -165,10 +160,10 @@ class Waveguide:
                     b_k = all_nodes[nodes[(j + 1) % 3], 1] - all_nodes[nodes[(j + 2) % 3], 1]
                     c_l = all_nodes[nodes[(i + 2) % 3], 0] - all_nodes[nodes[(i + 1) % 3], 0]
                     c_k = all_nodes[nodes[(j + 2) % 3], 0] - all_nodes[nodes[(j + 1) % 3], 0]
-                    b_1 = all_nodes[nodes[1], 1] - all_nodes[nodes[2], 1]
-                    c_1 = all_nodes[nodes[2], 0] - all_nodes[nodes[1], 0]
-                    b_2 = all_nodes[nodes[2], 1] - all_nodes[nodes[0], 1]
-                    c_2 = all_nodes[nodes[0], 0] - all_nodes[nodes[2], 0]
+                    # b_1 = all_nodes[nodes[1], 1] - all_nodes[nodes[2], 1]
+                    # c_1 = all_nodes[nodes[2], 0] - all_nodes[nodes[1], 0]
+                    # b_2 = all_nodes[nodes[2], 1] - all_nodes[nodes[0], 1]
+                    # c_2 = all_nodes[nodes[0], 0] - all_nodes[nodes[2], 0]
                     l = 1
                     if i == j:
                         l = 2
@@ -249,11 +244,9 @@ class Waveguide:
         """
         total_propagation_constants = []
         total_eigenvectors = []
-        # Assign these variables this way to avoid changing everything to "self.variable_name"
-        connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
 
         a = self.x_max - self.x_min
-        b = self.y_max - self.y_min
+        # b = self.y_max - self.y_min
         # Set up the k0 values to solve for
         start_k0 = 2 / a if start_k0 == -1 else start_k0
         end_k0 = 8 / a if end_k0 == -1 else end_k0
@@ -274,7 +267,6 @@ class Waveguide:
         :param y: The y point to compute the field at.
         :return: A numpy array of length three containing (Ex, Ey, Ez) at the specified point.
         """
-        ex, ey, ez = None, None, None
         # For skipping transverse fields and accessing the longitudinal fields
         skip_tran = len(self.remap_inner_edge_nums)
 
@@ -346,9 +338,7 @@ class Waveguide:
         # ----------------------FIELD PLOTTING--------------------------
         # Find the minimum and maximum x and y values among the nodes:
         # Create a rectangular grid of points that the geometry is inscribed in
-        num_x_points = 100
         x_points = np.linspace(self.x_min, self.x_max, num_x_points)
-        num_y_points = 100
         y_points = np.linspace(self.y_min, self.y_max, num_y_points)
         Ez = np.zeros([num_x_points, num_y_points])
         Ex = np.zeros([num_x_points, num_y_points])
@@ -366,12 +356,13 @@ class Waveguide:
                 pt_x = x_points[j]
                 Ex[i, j], Ey[i, j], Ez[i, j] = self.get_field_at(pt_x, pt_y)
 
-        plt.figure()
+        fig = plt.figure()
         color_image = plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")
         plt.colorbar(label="Ez")
         X, Y = np.meshgrid(x_points, y_points)
         skip = (slice(None, None, 5), slice(None, None, 5))
         plt.quiver(X[skip], Y[skip], Ex[skip], Ey[skip], color="black")
+        return fig
 
 
 def plot_rect_waveguide_mode(m, n, a=2, b=1, k0a_start=1, k0a_end=8, new_fig=False):

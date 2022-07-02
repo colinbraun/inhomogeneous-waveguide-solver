@@ -49,12 +49,11 @@ class Waveguide:
         """
         return self.betas[self.mode_index]
 
-    def solve_k0(self, k0, verbose=False):
+    def solve_k0(self, k0):
         """
         Solve for the propagation constants and eigenvectors of a waveguide at a particular k0.
         Can be inhomogeneous and any shape.
         :param k0: The k0 (essentially a frequency) to solve for.
-        :param verbose: If True, prints out information as the waveguide is solved.
         :return: Two numpy arrays. The first holds the propagation constants for the k0. The second holds the eigenvectors
         for the k0. Each array is sorted by propagation constant. Eigenvectors are stored as rows in the returned numpy
         array, not columns.
@@ -63,22 +62,12 @@ class Waveguide:
         self.k0 = k0
         # Load the mesh from the file
         connectivity, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map = self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map
-        # Debug statements
-        print(f"Number of Nodes: {len(all_nodes)}")
-        print(f"Number of Edges: {len(all_edges)}")
-        print(f"Number of Inner Nodes: {len(remap_inner_node_nums)}")
-        print(f"Number of Inner Edges: {len(remap_inner_edge_nums)}")
-        print()
         # Compute the bounds of the waveguide
         x_min = np.amin(all_nodes[:, 0])
         y_min = np.amin(all_nodes[:, 1])
         x_max = np.amax(all_nodes[:, 0])
         y_max = np.amax(all_nodes[:, 1])
 
-        a = x_max - x_min
-        b = y_max - y_min
-
-        print(f"Solving for k0 = {k0}")
         # Create empty matrices
         Att = np.zeros([len(remap_inner_edge_nums), len(remap_inner_edge_nums)])
         # These 3 will be left as zeros
@@ -230,7 +219,6 @@ class Waveguide:
         rhs = np.concatenate([np.concatenate([Btt, Btz], axis=1), np.concatenate([Bzt, Bzz], axis=1)], axis=0)
 
         # These eigenvalues give the -(\beta^2) values. They are quickly flipped in sign and only positive values taken.
-        print("Computing eigenvalues")
         eigenvalues, eigenvectors = eig(lhs, rhs, right=True)
         # Take the transpose such that each row of the matrix now corresponds to an eigenvector (helpful for sorting)
         eigenvectors = eigenvectors.transpose()
@@ -247,14 +235,13 @@ class Waveguide:
         self.eigenvectors = eigenvectors
         return betas, eigenvectors
 
-    def solve(self, start_k0=-1, end_k0=-1, num_k0s=10, verbose=False):
+    def solve(self, start_k0=-1, end_k0=-1, num_k0s=10):
         """
         Solve for the propagation constants and eigenvectors of a waveguide.
         Can be inhomogeneous and any shape, but non-rectangular waveguides should specify the start and end k0 values.
         :param start_k0: The starting k0 (essentially a frequency) to solve for. Default is 2 / waveguide's x length.
         :param end_k0: The ending k0 (essentially a frequency) to solve for. Default is 8 / waveguide's x length.
         :param num_k0s: The number of k0 values to solve for (between start_k0 and end_k0).
-        :param verbose: If True, prints out information as the waveguide is solved.
         :return: Three numpy arrays. The first holds a numpy array of propagation constants for each k0. The second holds a
         numpy array of eigenvectors for each k0. Each numpy array that corresponds to a particular k0 is sorted by the
         propagation constants solved for that k0. Eigenvectors are stored as rows in the returned numpy arrays, not columns.
@@ -274,7 +261,7 @@ class Waveguide:
 
         # Iterate over each k0 (frequency)
         for k0 in k0s:
-            eigenvalues, eigenvectors = self.solve_k0(k0, verbose)
+            eigenvalues, eigenvectors = self.solve_k0(k0)
             total_propagation_constants.append(eigenvalues)
             total_eigenvectors.append(eigenvectors)
 

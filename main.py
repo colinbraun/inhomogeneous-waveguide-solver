@@ -34,6 +34,11 @@ if __name__ == '__main__':
     waveguide.set_mode_index(0)
     # waveguide.plot_fields(all_eigenvectors[-1][-1])
     waveguide.plot_fields()
-    print(f"Plot shown for beta/k0 = {betas[-1]/k0s[-1]}")
+    # print(f"Plot shown for beta/k0 = {betas[-1]/k0s[-1]}")
+    # print(waveguide.x_min)
+    # print(waveguide.y_min)
+    # print(waveguide.x_max)
+    # print(waveguide.y_max)
+    # print(waveguide.integrate_line([0, 0.25], [0, -0.15]))
     # Do not need the below statement when plt.ion() is used
     # plt.show()

@@ -3,6 +3,7 @@ from iwaveguide.util import Edge
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import eig
+from scipy.integrate import trapz
 
 mu0 = 4E-7*np.pi
 epsilon0 = 8.8541878128E-12
@@ -260,6 +261,27 @@ class Waveguide:
 
         return np.array(total_propagation_constants, dtype=object), np.array(total_eigenvectors, dtype=object), k0s
 
+    def integrate_line(self, p1, p2, trapezoids=100):
+        """
+        Perform a line integral over the straight-line path from ``p1`` to ``p2``.
+        :param p1: The starting point in the line integral.
+        :param p2: The ending point in the line integral.
+        :param trapezoids: The number of trapezoids to use in the integration. Default = 100.
+        :return: The result of the integration.
+        """
+        # Convert to numpy arrays if not already
+        p1, p2 = np.array(p1), np.array(p2)
+        # The vector describing the direction of the line from ``p1`` to ``p2``.
+        v = np.array((p2[0] - p1[0], p2[1] - p1[1]))
+        # The normalized version of v
+        norm_v = np.zeros([3])
+        norm_v[0:2] = v / np.linalg.norm(v)
+        # How far along the line segment we are (0 = starting point, 1 = ending point)
+        t = np.linspace(0, 1, trapezoids)
+        all_points = np.array([p1 + t_val * (p2 - p1) for t_val in t])
+        y = np.array([np.dot(self.get_field_at(point[0], point[1]), norm_v) for point in all_points])
+        return trapz(y, dx=np.linalg.norm(v)/trapezoids)
+
     def get_field_at(self, x, y):
         """
         Compute the electric field at the point (x, y).
@@ -344,11 +366,6 @@ class Waveguide:
         Ex = np.zeros([num_x_points, num_y_points])
         Ey = np.zeros([num_x_points, num_y_points])
 
-        # Just used to skip over the transverse edge coefficients, the Ez coefficients come right after them
-        skip_tran = len(self.remap_inner_edge_nums)
-        # # The mode to show the fields for. This will tend to show the lowest possible mode first, but might not.
-        # # It really depends on the order of the beta values at that particular k0*a (frequency)
-        # mode = 0
         # Iterate over the 100x100 grid of points we want to plot
         for i in range(num_y_points):
             pt_y = y_points[i]
@@ -357,7 +374,7 @@ class Waveguide:
                 Ex[i, j], Ey[i, j], Ez[i, j] = self.get_field_at(pt_x, pt_y)
 
         fig = plt.figure()
-        color_image = plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")
+        plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")
         plt.colorbar(label="Ez")
         X, Y = np.meshgrid(x_points, y_points)
         skip = (slice(None, None, 5), slice(None, None, 5))
@@ -375,5 +392,3 @@ def plot_rect_waveguide_mode(m, n, a=2, b=1, k0a_start=1, k0a_end=8, new_fig=Fal
     k0s = np.linspace(min_k0, max_k0, num_freqs)
     betas = np.sqrt(k0s**2 - (m*np.pi/a)**2 - (n*np.pi/b)**2)
     plt.plot(k0s*a, betas/k0s)
-
-

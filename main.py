@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     # Load a homogeneous rectangular waveguide with epsilon_r = 1
     # waveguide = Waveguide("rect_mesh_two_epsilons_coarse.inp", ["EB1", "EB2"], "EB3")
-    waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2")
+    waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2", p1=[0, -0.25], p2=[0, 0.25])
     # waveguide = Waveguide("z_plane_mesh.inp", ["EB1"], "EB2")
     # Solve for the propagation constants and eigenvectors.
     betas, all_eigenvectors, k0s = waveguide.solve()
@@ -34,6 +34,7 @@ if __name__ == '__main__':
     waveguide.set_mode_index(0)
     # waveguide.plot_fields(all_eigenvectors[-1][-1])
     waveguide.plot_fields()
+    plt.savefig('temp.png')
     # print(f"Plot shown for beta/k0 = {betas[-1]/k0s[-1]}")
     # print(waveguide.x_min)
     # print(waveguide.y_min)

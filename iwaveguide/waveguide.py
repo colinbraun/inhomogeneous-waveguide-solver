@@ -11,13 +11,15 @@ epsilon0 = 8.8541878128E-12
 
 class Waveguide:
 
-    def __init__(self, filename, surface_names, boundary_name, permittivities=None):
+    def __init__(self, filename, surface_names, boundary_name, permittivities=None, p1=None, p2=None):
         """
         Constructor for a waveguide. Can be inhomogeneous and any shape.
         :param filename: The name of the abaqus file (.inp) to be used for this Waveguide object.
         :param surface_names: A list containing the names of each surface of the mesh in the .inp file.
         :param boundary_name: A string of the name of the boundary nodes of the mesh in the .inp file.
         :param permittivities: The corresponding permittivities of each surface as a list. Passing None will assign 1.
+        :param p1: If an integration line is desired, ``p1`` is the starting point of the line integral. Default = None.
+        :param p2: If an integration line is desired, ``p2`` is the ending point of the line integral. Default = None.
         """
         self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, surface_names, boundary_name, permittivities)
         # Compute the bounds of the waveguide
@@ -33,6 +35,8 @@ class Waveguide:
         self.eigenvectors = None
         # Store the k0 value of the current solution
         self.k0 = -1
+        # Hold on to the integration line points
+        self.p1, self.p2 = p1, p2
 
     def set_mode_index(self, mode_index):
         """
@@ -229,6 +233,9 @@ class Waveguide:
         # Return the \beta values and their corresponding eigenvectors
         self.betas = betas
         self.eigenvectors = eigenvectors
+        # If an integration line is defined, determine if we should flip the direction of the fields or not.
+        if self.p1 is not None and self.p2 is not None:
+            self.eigenvectors *= 1 if self.integrate_line(self.p1, self.p2) >= 0 else -1
         return betas, eigenvectors
 
     def solve(self, start_k0=-1, end_k0=-1, num_k0s=10):

@@ -21,7 +21,7 @@ class Waveguide:
         :param p1: If an integration line is desired, ``p1`` is the starting point of the line integral. Default = None.
         :param p2: If an integration line is desired, ``p2`` is the ending point of the line integral. Default = None.
         """
-        self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, surface_names, boundary_name, permittivities)
+        self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map, self.rotation, self.un_rotation = load_mesh(filename, surface_names, boundary_name, permittivities)
         # Compute the bounds of the waveguide
         self.x_min = np.amin(self.all_nodes[:, 0])
         self.y_min = np.amin(self.all_nodes[:, 1])
@@ -276,7 +276,7 @@ class Waveguide:
         :param trapezoids: The number of trapezoids to use in the integration. Default = 100.
         :return: The result of the integration.
         """
-        # Convert to numpy arrays if not already
+        # Convert to numpy arrays if not already and rotate
         p1, p2 = np.array(p1), np.array(p2)
         # The vector describing the direction of the line from ``p1`` to ``p2``.
         v = np.array((p2[0] - p1[0], p2[1] - p1[1]))
@@ -286,24 +286,25 @@ class Waveguide:
         # How far along the line segment we are (0 = starting point, 1 = ending point)
         t = np.linspace(0, 1, trapezoids)
         all_points = np.array([p1 + t_val * (p2 - p1) for t_val in t])
-        y = np.array([np.dot(self.get_field_at(point[0], point[1]), norm_v) for point in all_points])
+        y = np.array([np.dot(self.get_field_at(point), norm_v) for point in all_points])
         return trapz(y, dx=np.linalg.norm(v)/trapezoids)
 
-    def get_field_at(self, x, y):
+    def get_field_at(self, p):
         """
         Compute the electric field at the point (x, y).
-        :param x: The x point to compute the field at.
-        :param y: The y point to compute the field at.
+        :param p: The point to evaluate the field at.
         :return: A numpy array of length three containing (Ex, Ey, Ez) at the specified point.
         """
         # For skipping transverse fields and accessing the longitudinal fields
         skip_tran = len(self.remap_inner_edge_nums)
+        # Rotate the point into the xy plane
+        p = self.rotation @ np.array(p)
 
         # Keep track of whether we have found the element this point lies in.
         element_num = -1
         for k, element in enumerate(self.connectivity):
             # Check if the point is inside this element
-            if element.is_inside(x, y):
+            if element.is_inside(p[0], p[1]):
                 # The element this point lies in has been found, note it and stop searching
                 element_num = k
                 break
@@ -317,7 +318,7 @@ class Waveguide:
             phi3 = 0 if not element.nodes[2] in self.remap_inner_node_nums else self.eigenvectors[self.mode_index,
                 skip_tran + self.remap_inner_node_nums[element.nodes[2]]]
             # Interpolate to get Ez
-            ez = element.nodal_interpolate(phi1, phi2, phi3, x, y)
+            ez = element.nodal_interpolate(phi1, phi2, phi3, p[0], p[1])
 
             # Get the phi values associated with each edge
             phi1e = 0 if not element.edges[0] in self.remap_inner_edge_nums else self.eigenvectors[self.mode_index,
@@ -327,11 +328,12 @@ class Waveguide:
             phi3e = 0 if not element.edges[2] in self.remap_inner_edge_nums else self.eigenvectors[self.mode_index,
                 self.remap_inner_edge_nums[element.edges[2]]]
             # Interpolate to get Ex and Ey
-            ex, ey = element.edge_interpolate(phi1e, phi2e, phi3e, x, y)
+            ex, ey = element.edge_interpolate(phi1e, phi2e, phi3e, p[0], p[1])
         else:
-            raise RuntimeError(f"Electric field requested at point ({x}, {y}) lies outside the geometry")
+            raise RuntimeError(f"Electric field requested at point ({p}) lies outside the geometry")
 
-        return np.array([ex, ey, ez])
+        # Return the result, un-rotated
+        return self.un_rotation @ np.array([ex, ey, ez])
 
     def plot_dispersion(self, k0s, all_propagation_constants, rel_x=True):
         """
@@ -375,10 +377,9 @@ class Waveguide:
 
         # Iterate over the 100x100 grid of points we want to plot
         for i in range(num_y_points):
-            pt_y = y_points[i]
             for j in range(num_x_points):
-                pt_x = x_points[j]
-                Ex[i, j], Ey[i, j], Ez[i, j] = self.get_field_at(pt_x, pt_y)
+                p = np.array([x_points[j], y_points[i], 0])
+                Ex[i, j], Ey[i, j], Ez[i, j] = self.rotation @ self.get_field_at(self.un_rotation @ p)
 
         fig = plt.figure()
         plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")

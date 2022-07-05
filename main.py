@@ -10,22 +10,23 @@ if __name__ == '__main__':
 
     # Load a homogeneous rectangular waveguide with epsilon_r = 1
     # waveguide = Waveguide("rect_mesh_two_epsilons_coarse.inp", ["EB1", "EB2"], "EB3")
-    waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2", p1=[0, -0.25], p2=[0, 0.25])
+    waveguide = Waveguide("rect_mesh_one_epsilon_finer_20220615.inp", ["EB1"], "EB2", p1=[0, -0.25, 0], p2=[0, 0.25, 0])
     # waveguide = Waveguide("z_plane_mesh.inp", ["EB1"], "EB2")
     # Solve for the propagation constants and eigenvectors.
-    betas, all_eigenvectors, k0s = waveguide.solve()
+    # betas, all_eigenvectors, k0s = waveguide.solve()
     # Plot the dispersion curve using the results.
-    waveguide.plot_dispersion(k0s, betas)
+    # waveguide.plot_dispersion(k0s, betas)
+    waveguide.solve_k0(4)
     # Create the figure for plotting. Not needed if figure already created by Waveguide#plot_dispersion().
     # plt.figure()
     # plt.xlabel(r"$k_0 * a$")
     # plt.ylabel(r"$\beta / k_0$")
     # Analytical TE/TM Modes (the dispersion curves will look the same)
-    for i in range(3):
-        for j in range(3):
-            if i == j == 0:
-                continue
-            plot_rect_waveguide_mode(i, j)
+    # for i in range(3):
+    #     for j in range(3):
+    #         if i == j == 0:
+    #             continue
+    #         plot_rect_waveguide_mode(i, j)
 
     # Plot the fields of the waveguide. all_eigenvectors[-1] gives a set of eigenvectors for the end k0.
     # Indexing that set by [-1] gives the mode with the highest propagation constant for that k0.
@@ -35,6 +36,7 @@ if __name__ == '__main__':
     # waveguide.plot_fields(all_eigenvectors[-1][-1])
     waveguide.plot_fields()
     plt.savefig('temp.png')
+    print('Done')
     # print(f"Plot shown for beta/k0 = {betas[-1]/k0s[-1]}")
     # print(waveguide.x_min)
     # print(waveguide.y_min)

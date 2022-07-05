@@ -35,12 +35,6 @@ class Edge:
         Hash the edge object for fast performance on maps/sets.
         Two edges with flipped node numbers produce the same hash value (are considered equal when compared thru map/set)
         """
-        # if self.node1 < self.node2:
-        #     hash_value = (self.node1, self.node2).__hash__()
-        # else:
-        #     hash_value = (self.node2, self.node1).__hash__()
-        # # print(f"Hash value: {hash_value}")
-        # return hash_value
         return hash(tuple(sorted((self.node1, self.node2))))
 
 
@@ -241,6 +235,8 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     if permittivities is None:
         permittivities = [1 for i in range(len(surface_names))]
     all_nodes = load_mesh_block(filename, "ALLNODES")
+    rotation = np.identity(3)
+    un_rotation = np.identity(3)
     # Check if we are dealing with a 3D mesh
     if all_nodes.shape[1] == 3:
         # Get 3 points that lie in the plane
@@ -268,7 +264,13 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
         p2 = rotation @ plane_points[1]
         p3 = un_rotation @ rotation @ plane_points[2]
         # TODO: Finish testing this 3D rotation idea. Seems to be working, but commenting out for now for testing in 3D
-        # all_nodes = np.array([rotation @ node for node in all_nodes])
+        all_nodes = np.array([rotation @ node for node in all_nodes])
+    else:
+        # Force all_nodes to have 3 values (assign z = 0 as a third column)
+        # print(all_nodes.shape)
+        zeros = np.zeros([all_nodes.shape[0], 1])
+        all_nodes = np.hstack((all_nodes, zeros))
+        # print(all_nodes.shape)
 
     # CONSTRUCT ELEMENT NODE CONNECTIVITY LIST FOR EACH SURFACE
     surfaces_node_connectivity = []
@@ -391,7 +393,7 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     # remap_inner_edge_nums: A map that takes one of the inner edge numbers and maps it to a unique integer between [0, number of inner edges]
     # remap_inner_node_nums: A map that takes one of the inner node numbers and maps it to a unique integer between [0, number of inner nodes]
     # all_edges_map: A map from an Edge object to its global edge number
-    return elements, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map
+    return elements, all_nodes, all_edges, boundary_node_numbers, boundary_edge_numbers, remap_inner_node_nums, remap_inner_edge_nums, all_edges_map, rotation, un_rotation
 
 
 def area(x1, y1, x2, y2, x3, y3):

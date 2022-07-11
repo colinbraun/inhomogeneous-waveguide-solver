@@ -230,6 +230,10 @@ class Waveguide:
         # Find the first positive propagation constant
         first_pos = np.argwhere(eigenvalues >= 0)[0, 0]
         betas, eigenvectors = np.sqrt(eigenvalues[first_pos:]), eigenvectors[first_pos:]
+        # Remove infinite eigenvalues (if any are found to exist)
+        last_pos = np.argwhere(betas == float('inf'))
+        last_pos = slice(0, last_pos[0, 0]) if len(last_pos) > 0 else slice(0, len(betas))
+        betas, eigenvectors = betas[last_pos], eigenvectors[last_pos]
         # Return the \beta values and their corresponding eigenvectors
         self.betas = betas
         self.eigenvectors = eigenvectors
@@ -329,7 +333,9 @@ class Waveguide:
             # Interpolate to get Ex and Ey
             ex, ey = element.edge_interpolate(phi1e, phi2e, phi3e, x, y)
         else:
-            raise RuntimeError(f"Electric field requested at point ({x}, {y}) lies outside the geometry")
+            # print(f"Electric field requested at point ({x}, {y}) lies outside the geometry")
+            return np.array([0, 0, 0])
+            # raise RuntimeError(f"Electric field requested at point ({x}, {y}) lies outside the geometry")
 
         return np.array([ex, ey, ez])
 
@@ -369,9 +375,9 @@ class Waveguide:
         # Create a rectangular grid of points that the geometry is inscribed in
         x_points = np.linspace(self.x_min, self.x_max, num_x_points)
         y_points = np.linspace(self.y_min, self.y_max, num_y_points)
-        Ez = np.zeros([num_x_points, num_y_points])
-        Ex = np.zeros([num_x_points, num_y_points])
-        Ey = np.zeros([num_x_points, num_y_points])
+        Ez = np.zeros([num_y_points, num_x_points])
+        Ex = np.zeros([num_y_points, num_x_points])
+        Ey = np.zeros([num_y_points, num_x_points])
 
         # Iterate over the 100x100 grid of points we want to plot
         for i in range(num_y_points):
@@ -380,6 +386,8 @@ class Waveguide:
                 pt_x = x_points[j]
                 Ex[i, j], Ey[i, j], Ez[i, j] = self.get_field_at(pt_x, pt_y)
 
+        # Fix Ez to be oriented correctly
+        Ez = np.flipud(Ez)
         fig = plt.figure()
         plt.imshow(Ez, extent=[self.x_min, self.x_max, self.y_min, self.y_max], cmap="cividis")
         plt.colorbar(label="Ez")

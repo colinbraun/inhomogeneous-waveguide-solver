@@ -243,32 +243,8 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
     all_nodes = load_mesh_block(filename, "ALLNODES")
     # Check if we are dealing with a 3D mesh
     if all_nodes.shape[1] == 3:
-        # Get 3 points that lie in the plane
-        plane_points = all_nodes[load_mesh_block(filename, surface_names[0])[0]]
-        v1 = plane_points[1] - plane_points[0]
-        v2 = plane_points[2] - plane_points[0]
-        # Compute the normal to the plane
-        n = np.cross(v1, v2)
-        # Normalize it
-        n = n / math.sqrt(n[0]**2 + n[1]**2 + n[2]**2)
-        # Get the constants for the plane equation
-        a, b, c = n[0], n[1], n[2]
-        d = -(plane_points[0]*a + plane_points[1]*b + plane_points[2]*c)
-        cos_theta = c / math.sqrt(a**2 + b**2 + c**2)
-        sin_theta = math.sqrt((a**2 + b**2) / (a**2 + b**2 + c**2))
-        u1 = b / math.sqrt(a**2 + b**2 + c**2)
-        u2 = -a / math.sqrt(a**2 + b**2 + c**2)
-        rotation = np.array([[cos_theta + u1**2*(1-cos_theta), u1*u2*(1-cos_theta), u2*sin_theta],
-                             [u1*u2*(1-cos_theta), cos_theta + u2**2*(1-cos_theta), -u1*sin_theta],
-                             [-u2*sin_theta, u1*sin_theta, cos_theta]])
-        # Create the inverse
-        un_rotation = np.linalg.inv(rotation)
-        # Hit all points with the rotation
-        p1 = rotation @ plane_points[0]
-        p2 = rotation @ plane_points[1]
-        p3 = un_rotation @ rotation @ plane_points[2]
-        # TODO: Finish testing this 3D rotation idea. Seems to be working, but commenting out for now for testing in 3D
-        # all_nodes = np.array([rotation @ node for node in all_nodes])
+        print("Warning: Mesh contains Z-axis data. Expected only X-axis and Y-axis data. Z-axis data will be ignored.")
+        all_nodes = all_nodes[:, 0:2]
 
     # CONSTRUCT ELEMENT NODE CONNECTIVITY LIST FOR EACH SURFACE
     surfaces_node_connectivity = []
@@ -375,10 +351,17 @@ def load_mesh(filename, surface_names, boundary_name, permittivities=None):
 
     # Construct a list of triangle Element objects, each holding the nodal, edge, and material information
     elements = []
-    for i in range(len(surfaces_edge_connectivity)):
-        for j in range(len(surfaces_edge_connectivity[i])):
-            # permittivity = permittivities[i]
-            elements.append(Element(surfaces_node_connectivity[i][j], surfaces_edge_connectivity[i][j], permittivities[i], all_nodes, all_edges))
+    # for i in range(len(surfaces_edge_connectivity)):
+    #     for j in range(len(surfaces_edge_connectivity[i])):
+    #         # permittivity = permittivities[i]
+    #         elements.append(Element(surfaces_node_connectivity[i][j], surfaces_edge_connectivity[i][j], permittivities[i], all_nodes, all_edges))
+    for i in range(len(surfaces_node_connectivity)):
+        for j in range(len(surfaces_node_connectivity[i])):
+            nodes = surfaces_node_connectivity[i][j]
+            edge1, edge2, edge3 = Edge(nodes[0], nodes[1], all_nodes), Edge(nodes[1], nodes[2], all_nodes), Edge(nodes[2], nodes[0], all_nodes)
+            edges = np.array([all_edges_map[edge1], all_edges_map[edge2], all_edges_map[edge3]])
+            element = Element(nodes, edges, permittivities[i], all_nodes, all_edges)
+            elements.append(element)
     # Transform into numpy array
     elements = np.array(elements)
 

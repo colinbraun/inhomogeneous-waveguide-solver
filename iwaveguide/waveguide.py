@@ -23,10 +23,14 @@ class Waveguide:
         """
         self.connectivity, self.all_nodes, self.all_edges, self.boundary_node_numbers, self.boundary_edge_numbers, self.remap_inner_node_nums, self.remap_inner_edge_nums, self.all_edges_map = load_mesh(filename, surface_names, boundary_name, permittivities)
         # Compute the bounds of the waveguide
-        self.x_min = np.amin(self.all_nodes[:, 0])
-        self.y_min = np.amin(self.all_nodes[:, 1])
-        self.x_max = np.amax(self.all_nodes[:, 0])
-        self.y_max = np.amax(self.all_nodes[:, 1])
+        # self.x_min = np.amin(self.all_nodes[:, 0])
+        self.x_min = np.amin(self.all_nodes[self.boundary_node_numbers, 0])
+        # self.y_min = np.amin(self.all_nodes[:, 1])
+        self.y_min = np.amin(self.all_nodes[self.boundary_node_numbers, 1])
+        # self.x_max = np.amax(self.all_nodes[:, 0])
+        self.x_max = np.amax(self.all_nodes[self.boundary_node_numbers, 0])
+        # self.y_max = np.amax(self.all_nodes[:, 1])
+        self.y_max = np.amax(self.all_nodes[self.boundary_node_numbers, 1])
         # The mode to choose for the propagation constant and eigenvector. Used in getting and plotting field data
         # mode_index of -1 indicates the mode with the highest propagation constant. -2 is the next highest.
         self.mode_index = -1
